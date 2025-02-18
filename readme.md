@@ -46,8 +46,9 @@ sudo ./dd-toolbox.sh
 2. **Download Image And Burn**: Download an ISO image from the internet and burn it to a USB drive.
 3. **Create A 1:1 Disk Image**: Create a disk image from a USB drive.
 4. **Create Image from Directory**: Create an ISO image from a specified directory.
-5. **Advanced**: Access advanced disk operations.
-6. **Exit**: Exit the script.
+5. **Flash Bootable Image**: Flash a bootable or live Image
+6. **Advanced**: Access advanced disk operations.
+7. **Exit**: Exit the script.
 
 ### Advanced Menu Options
 
