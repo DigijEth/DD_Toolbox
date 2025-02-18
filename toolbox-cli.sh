@@ -1,12 +1,12 @@
 #!/bin/bash
 
 
-# DD Burner V1.04  
+# DD Flasher V1.05  
 # Please Donate to the Developer if you find this script useful
 # On Solana: Setec.sol 
 # On Ethereum: Digij.eth 
-# Place ISO files in the ../burn-iso/images/ folder
-# This script is designed to be used on Linux systems to burn and create 1:1 copies of ISO files to USB drives.    
+# Place ISO files in the ../flash-iso/images/ folder
+# This script is designed to be used on Linux systems to flash and create 1:1 copies of ISO files to USB drives.    
 # 
 # The progress of the write operation can be monitored using the 'pv' tool if available.
 # The script logs all operations to a log file for reference.
@@ -52,7 +52,7 @@ COMPRESSED_FORMATS="\.gz$|\.xz$|\.zip$|\.7z$"
 
 # log configuration.
  LOG_DIR="../dd_bash/logs"
- LOG_FILE="$LOG_DIR/burn-iso.log"
+ LOG_FILE="$LOG_DIR/flash-iso.log"
  mkdir -p "$LOG_DIR"
 
 # logging and error handling functions
@@ -436,7 +436,7 @@ monitor_progress() {
     local size=$(stat -c %s "$input")
     
     if check_pv; then
-        log "INFO" "Starting burn process with progress monitoring"
+        log "INFO" "Starting flash process with progress monitoring"
         sudo pv -s "$size" "$input" | sudo dd of="$output" bs=4M conv=fsync
     else
         log "INFO" "Using dd without progress bar"
@@ -461,14 +461,14 @@ check_pv() {
 show_completion_dialog() {
     echo -e "\n${GREEN}ISO successfully written to device!${NC}"
     echo -e "\nWhat would you like to do?"
-    echo "1) Burn another image"
+    echo "1) Flash another image"
     echo "2) Exit"
     
     while true; do
         read -p "Select option (1-2): " choice
         case "$choice" in
             1) return 0 ;;
-            2) log "INFO" "User chose to exit after successful burn"
+            2) log "INFO" "User chose to exit after successful flash"
                exit 0 ;;
             *) echo -e "${RED}Invalid option${NC}" ;;
         esac
@@ -737,15 +737,16 @@ create_iso_from_dir() {
 while true; do
     clear
     echo -e "${YELLOW}=== DD Toolbox ===${NC}\n"
-    echo "1. Burn Image From File"
-    echo "2. Download Image And Burn"
+    echo "1. Flash Image From File"
+    echo "2. Download Image And Flash"
     echo "3. Create A 1:1 Disk Image"
     echo "4. Create Image from Directory"
-    echo "5. Advanced"
-    echo "6. Exit"
+    echo "5. Flash Bootable Image"
+    echo "6. Advanced"
+    echo "7. Exit"
     echo
     
-    read -p "Select an option (1-6): " option
+    read -p "Select an option (1-7): " option
     
     case $option in
         1)
@@ -841,9 +842,66 @@ while true; do
             read -p "Press Enter to continue..."
             ;;
         5)
-            show_advanced_menu
+            while true; do
+                if ! list_iso_files; then
+                    log "ERROR" "Failed to list ISO files"
+                    read -p "Press Enter..."
+                    continue
+                fi
+                read -p "Select image number or option: " iso_num
+                case "$iso_num" in
+                    q) exit 0 ;;
+                    b) break ;;
+                    r) continue ;;
+                    *)
+                        selected_file=$(find "$ISO_DIR" -type f -regextype posix-extended \
+                            -regex ".*($SUPPORTED_FORMATS|$COMPRESSED_FORMATS)" | sed -n "${iso_num}p")
+                        
+                        if [ -z "$selected_file" ]; then
+                            echo -e "${RED}Invalid selection${NC}"
+                            read -p "Press Enter..."
+                            continue
+                        fi
+                        
+                        # Handle compressed files
+                        if echo "$selected_file" | grep -qE "$COMPRESSED_FORMATS"; then
+                            extracted_file=$(extract_file "$selected_file")
+                            [ $? -ne 0 ] && { read -p "Press Enter..."; continue; }
+                            iso_file="$extracted_file"
+                        else
+                            iso_file="$selected_file"
+                        fi
+                        
+                        # Add device listing prompt
+                        echo -e "\n${YELLOW}Device Selection:${NC}"
+                        echo "1) Show all devices"
+                        echo "2) Show only removable devices (USB/SD)"
+                        read -p "Select option (1-2): " dev_choice
+                        
+                        case "$dev_choice" in
+                            1) show_all=true ;;
+                            2) show_all=false ;;
+                            *) 
+                                echo -e "${RED}Invalid option${NC}"
+                                read -p "Press Enter..."
+                                continue ;;
+                        esac
+                        
+                        while true; do
+                            list_devices "$show_all"
+                            # ...rest of the device selection code...
+                            break
+                        done
+                        break
+                        ;;
+                esac
+            done
+            [ "$iso_num" = "b" ] && continue
             ;;
         6)
+            show_advanced_menu
+            ;;
+        7)
             exit 0
             ;;
         *)
