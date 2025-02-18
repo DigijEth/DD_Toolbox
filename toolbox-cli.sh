@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-# DD Flasher V1.05  
+# DD Flasher V1.06  
 # Please Donate to the Developer if you find this script useful
 # On Solana: Setec.sol 
 # On Ethereum: Digij.eth 
@@ -12,6 +12,7 @@
 # The script logs all operations to a log file for reference.
 # The script requires 'sudo' privileges to run certain commands.
 # Ensure that the 'dd' and 'pv' tools are installed on the system for the script to work correctly.
+# Released under the GPL-3.0 License
 
 
 # Superuser check to make sure people dont forget to run as sudo
@@ -43,7 +44,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-ISO_DIR="../dd_bash/images"
+ISO_DIR="../images"
 TMP_DEVICES="/tmp/devices.txt"
 
 # supported formats, if you need to add other, do it here
@@ -243,9 +244,21 @@ list_iso_files() {
     fi
     
     echo -e "${GREEN}Available image files:${NC}"
-    find "$ISO_DIR" -type f -regextype posix-extended \
-        -regex ".*($SUPPORTED_FORMATS|$COMPRESSED_FORMATS)" | nl || echo "No image files found"
-    show_image_menu
+    iso_files=$(find "$ISO_DIR" -type f -regextype posix-extended \
+        -regex ".*($SUPPORTED_FORMATS|$COMPRESSED_FORMATS)" | nl)
+    
+    if [ -z "$iso_files" ]; then
+        echo -e "${YELLOW}No image files found in the directory. Please select a file manually.${NC}"
+        read -p "Enter the path to the ISO file: " selected_file
+        if [ ! -f "$selected_file" ]; then
+            echo -e "${RED}Invalid file path${NC}"
+            return 1
+        fi
+        echo "$selected_file"
+    else
+        echo "$iso_files"
+        show_image_menu
+    fi
 }
 
 # Function to list only removable devices

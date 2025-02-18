@@ -1,17 +1,18 @@
 #!/bin/bash
 
 
-# DD Burner V1.04  
+# DD Flasher V1.06  
 # Please Donate to the Developer if you find this script useful
 # On Solana: Setec.sol 
 # On Ethereum: Digij.eth 
-# Place ISO files in the ../burn-iso/images/ folder
-# This script is designed to be used on Linux systems to burn and create 1:1 copies of ISO files to USB drives.    
+# Place ISO files in the ../flash-iso/images/ folder
+# This script is designed to be used on Linux systems to flash and create 1:1 copies of ISO files to USB drives.    
 # 
 # The progress of the write operation can be monitored using the 'pv' tool if available.
 # The script logs all operations to a log file for reference.
 # The script requires 'sudo' privileges to run certain commands.
 # Ensure that the 'dd' and 'pv' tools are installed on the system for the script to work correctly.
+# Released under the GPL-3.0 License
 
 
 # Superuser check to make sure people dont forget to run as sudo
@@ -43,7 +44,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-ISO_DIR="../dd_bash/images"
+ISO_DIR="../images"
 TMP_DEVICES="/tmp/devices.txt"
 
 # supported formats, if you need to add other, do it here
@@ -52,7 +53,7 @@ COMPRESSED_FORMATS="\.gz$|\.xz$|\.zip$|\.7z$"
 
 # log configuration.
  LOG_DIR="../dd_bash/logs"
- LOG_FILE="$LOG_DIR/burn-iso.log"
+ LOG_FILE="$LOG_DIR/flash-iso.log"
  mkdir -p "$LOG_DIR"
 
 # logging and error handling functions
@@ -241,17 +242,20 @@ list_iso_files() {
         -regex ".*($SUPPORTED_FORMATS|$COMPRESSED_FORMATS)" | nl)
     
     if [ -z "$iso_files" ]; then
-        zenity --info --text="No image files found"
-        return 1
+        zenity --info --text="No image files found in the directory. Please select a file manually."
+        selected_file=$(zenity --file-selection --title="Select ISO File")
+        if [ -z "$selected_file" ]; then
+            return 1
+        fi
+        echo "$selected_file"
+    else
+        selected_file=$(zenity --list --title="Select ISO File" --column="Files" $iso_files)
+        if [ -z "$selected_file" ]; then
+            return 1
+        fi
+        selected_file=$(echo "$selected_file" | awk '{print $2}')
+        echo "$selected_file"
     fi
-    
-    selected_file=$(zenity --list --title="Select ISO File" --column="Files" $iso_files)
-    if [ -z "$selected_file" ]; then
-        return 1
-    fi
-    
-    selected_file=$(echo "$selected_file" | awk '{print $2}')
-    echo "$selected_file"
 }
 
 # Function to list only removable devices
@@ -452,7 +456,7 @@ monitor_progress() {
     local size=$(stat -c %s "$input")
     
     if check_pv; then
-        log "INFO" "Starting burn process with progress monitoring"
+        log "INFO" "Starting flash process with progress monitoring"
         sudo pv -s "$size" "$input" | sudo dd of="$output" bs=4M conv=fsync
     else
         log "INFO" "Using dd without progress bar"
@@ -477,14 +481,14 @@ check_pv() {
 show_completion_dialog() {
     echo -e "\n${GREEN}ISO successfully written to device!${NC}"
     echo -e "\nWhat would you like to do?"
-    echo "1) Burn another image"
+    echo "1) Flash another image"
     echo "2) Exit"
     
     while true; do
         read -p "Select option (1-2): " choice
         case "$choice" in
             1) return 0 ;;
-            2) log "INFO" "User chose to exit after successful burn"
+            2) log "INFO" "User chose to exit after successful flash"
                exit 0 ;;
             *) echo -e "${RED}Invalid option${NC}" ;;
         esac
@@ -752,20 +756,26 @@ create_iso_from_dir() {
 # Main menu
 while true; do
     option=$(zenity --list --title="DD Toolbox" --column="Options" \
-        "Burn Image From File" "Download Image And Burn" "Create A 1:1 Disk Image" \
-        "Create Image from Directory" "Advanced" "Exit")
+        "Flash Image From File" "Download Image And Flash" "Create A 1:1 Disk Image" \
+        "Create Image from Directory" "Flash Bootable Image" "Advanced" "Exit")
     
     case $option in
-        "Burn Image From File")
+        "Flash Image From File")
             iso_file=$(list_iso_files)
-            [ $? -ne 0 ] && continue
+            if [ $? -ne 0 ]; then
+                log "ERROR" "Failed to list ISO files"
+                continue
+            fi
             
             show_all=$(zenity --list --title="Device Selection" --column="Options" \
                 "Show all devices" "Show only removable devices (USB/SD)")
             [ "$show_all" = "Show all devices" ] && show_all=true || show_all=false
             
             device=$(list_devices "$show_all")
-            [ $? -ne 0 ] && continue
+            if [ $? -ne 0 ]; then
+                log "ERROR" "Failed to list devices"
+                continue
+            fi
             
             zenity --question --text="WARNING: This will erase all data on /dev/$device. Are you sure you want to continue?"
             [ $? -ne 0 ] && continue
@@ -774,7 +784,7 @@ while true; do
             monitor_progress "$iso_file" "/dev/$device"
             verify_iso "$device" && show_completion_dialog
             ;;
-        "Download Image And Burn")
+        "Download Image And Flash")
             iso_url=$(zenity --entry --title="Download ISO" --text="Enter ISO URL:")
             download_iso "$iso_url"
             iso_file="$target_file"
@@ -786,6 +796,30 @@ while true; do
             ;;
         "Create Image from Directory")
             create_iso_from_dir
+            ;;
+        "Flash Bootable Image")
+            iso_file=$(list_iso_files)
+            if [ $? -ne 0 ]; then
+                log "ERROR" "Failed to list ISO files"
+                continue
+            fi
+            
+            show_all=$(zenity --list --title="Device Selection" --column="Options" \
+                "Show all devices" "Show only removable devices (USB/SD)")
+            [ "$show_all" = "Show all devices" ] && show_all=true || show_all=false
+            
+            device=$(list_devices "$show_all")
+            if [ $? -ne 0 ]; then
+                log "ERROR" "Failed to list devices"
+                continue
+            fi
+            
+            zenity --question --text="WARNING: This will erase all data on /dev/$device. Are you sure you want to continue?"
+            [ $? -ne 0 ] && continue
+            
+            format_drive "$device"
+            monitor_progress "$iso_file" "/dev/$device"
+            verify_iso "$device" && show_completion_dialog
             ;;
         "Advanced")
             show_advanced_menu
