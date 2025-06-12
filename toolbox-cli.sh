@@ -165,7 +165,8 @@ check_dependencies() {
         "pv:pv"
         "mkfs.vfat:dosfstools"
         "wget:wget"
-        "mkisofs:mkisofs | genisoimage:genisoimage"
+        "mkisofs:mkisofs" 
+        "genisoimage:genisoimage"
         "sync:coreutils"
         "lsblk:util-linux"
     )
